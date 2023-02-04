@@ -2,11 +2,10 @@ import asyncio
 import json
 
 from aiohttp import ClientSession
-from sqlalchemy import select, update
-from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 import model
-from db import engine
+from db import async_session, set_context_session, session
 
 
 WP_JSON = '/wp-json/wp/v2/posts'
@@ -14,43 +13,47 @@ WP_JSON = '/wp-json/wp/v2/posts'
 
 async def run_parse():
     
-    async def task(conn, client: ClientSession, row: dict, sem):
+    async def task(client: ClientSession, row: dict, sem):
         res = None
         try:
             res = await client.get(row['url'] + WP_JSON)
             if res.status == 200:
                 data_text = await res.text()
                 data = json.loads(data_text)
-                print(f'WP FOUND: {row["id"]}', row, sem)
-                upd = (
-                    update(model.Sites)
-                    .where(model.Sites.id == row['id'])
-                    .values(posts=json.dumps(data))
+                q = f"""
+                    UPDATE sites
+                    SET posts=:post
+                    WHERE id=:id"""
+                args = dict(
+                    post=json.dumps(data, ensure_ascii=False),
+                    id=row['id']
                 )
-                # with engine.begin() as conn:
-                conn.execute(upd)
-                conn.commit()
-            else:
-                print(f'NO WP: {row["id"]}', row, sem)
+                await session().execute(q, args)
+            
         except Exception as e:
             print(e)
+        await session().commit()
 
     sem = asyncio.Semaphore(100)
 
-    async def sem_task(conn, client, row):
+    async def sem_task(client, row):
         async with sem:  
-            return await task(conn, client, row, sem)
+            return await task(client, row, sem)
 
-    with engine.begin() as conn:
-        sites = conn.execute(select(model.Sites)).mappings().fetchall()
+    async with async_session() as s:
+        set_context_session(s)
+        sites = (await session().execute(
+                str(select(model.Sites)),
+            )
+        ).mappings().fetchall()
+
         async with ClientSession() as client:
-            all_res = await asyncio.gather(
+            await asyncio.gather(
                 *[
-                    asyncio.ensure_future(sem_task(conn, client, dict(site)))
+                    asyncio.ensure_future(sem_task(client, dict(site)))
                     for site in sites
                 ],
             )
-            all_res = all_res
 
 
 def main():

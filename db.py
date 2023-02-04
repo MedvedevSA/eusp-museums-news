@@ -1,33 +1,32 @@
-from sqlalchemy import create_engine, select, insert, text
-from sqlalchemy.orm import Session
+from contextvars import ContextVar
 
-import model
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-engine = create_engine("sqlite:///sqlite.db")
+from config import SYNC_DB_URL, ASYNC_DB_URL
 
 
-def init_db():
-    def init_models():
-        with engine.connect() as conn:
-            for meta_tbl in model.Base.metadata.tables.values():
-                conn.execute(text(f'drop table if exists {meta_tbl}'))
+ctx_session = ContextVar('ctx_session', default=None)
 
-            model.Base.metadata.create_all(conn)
 
-    def seeds():
-        with Session(engine) as session:
-            q = f"""
-count(*) as ref_count,
-"_source/general/contacts/website" as url
-from raw_data
-group by "_source/general/contacts/website"
-            """
-            session.execute(insert(model.Sites)
-                            .from_select(['ref_count', 'url'],select(text(q)))
-            )
-            session.commit()
+def session() -> AsyncSession:
+    s = ctx_session.get()
+    if not s:
+        raise Exception('Session is not set')
+    return s
 
-    init_models()
-    seeds()
+
+def set_context_session(session: AsyncSession):
+    ctx_session.set(session)
+
+
+engine = create_engine(SYNC_DB_URL)
+async_engine = create_async_engine(ASYNC_DB_URL)
+async_session = sessionmaker(async_engine,
+                             expire_on_commit=False,
+                             class_=AsyncSession)
+
+
 
     
