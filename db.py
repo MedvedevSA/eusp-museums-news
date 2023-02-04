@@ -1,17 +1,18 @@
 from sqlalchemy import create_engine, select, insert, text
 from sqlalchemy.orm import Session
 
-from model import Base
 import model
+
 engine = create_engine("sqlite:///sqlite.db")
 
-def init():
+
+def init_db():
     def init_models():
         with engine.connect() as conn:
-            for meta_tbl in Base.metadata.tables.values():
+            for meta_tbl in model.Base.metadata.tables.values():
                 conn.execute(text(f'drop table if exists {meta_tbl}'))
 
-            Base.metadata.create_all(conn)
+            model.Base.metadata.create_all(conn)
 
     def seeds():
         with Session(engine) as session:
