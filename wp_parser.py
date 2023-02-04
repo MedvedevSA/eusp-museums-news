@@ -2,6 +2,7 @@ import logging
 import asyncio
 import json
 from funcy import get_in
+from typing import List
 
 from aiohttp import ClientSession, ClientConnectionError
 from sqlalchemy import select, insert
@@ -11,6 +12,16 @@ from db import async_session, set_context_session, session
 
 logger = logging.getLogger()
 WP_JSON = '/wp-json/wp/v2/posts'
+CHUNK_SIZE = 200
+
+status_str = '{title} ({signs})'
+
+
+def row_signs_str(row, _list):
+    return', '.join([
+        ':'.join([str(k), str(v)])
+        for k, v in row.items() if k in _list
+    ])
 
 
 class WPParser:
@@ -21,40 +32,37 @@ class WPParser:
         if not self.log:
             self.log = logger
 
-        self.sem = asyncio.Semaphore(100)
+        self.sem = asyncio.Semaphore(500)
 
-    async def _add_to_news(self, row, wp_resp):
+    async def add_to_news(self, row: dict, wp_resp: List[dict]):
         url = row['url']
         for post in wp_resp:
-            if isinstance(post, dict):
-                item = dict(
-                    site_url=url,
-                    ext_id=post.get('id'),
-                    title=get_in(post, ['title', 'rendered']),
-                    news_content=get_in(post, ['content', 'rendered']),
-                    link=post.get('link'),
+            item = dict(
+                site_url=url,
+                ext_id=post.get('id'),
+                title=get_in(post, ['title', 'rendered']),
+                news_content=get_in(post, ['content', 'rendered']),
+                link=post.get('link'),
+            )
+            q = (
+                select(model.News).where(
+                    model.News.ext_id == item['ext_id']).where(
+                        model.News.site_url == item['site_url']
+                    )
+            )
+            if not (await session().execute(q)).scalar_one_or_none():
+                q = insert(model.News).values(**item)
+                await session().execute(q)
+                await session().commit()
+                self.log.info(status_str.format(
+                    title="Success parsed", 
+                    signs=row_signs_str(row, ['id', 'url'])
+                    )
                 )
-                q = (
-                    select(model.News).where(
-                        model.News.ext_id == item['ext_id']).where(
-                            model.News.site_url == item['site_url']
-                        )
-                )
-                if not (await session().execute(q)).scalar_one_or_none():
-                    q = insert(model.News).values(**item)
-                    await session().execute(q)
-                    await session().commit()
-                    self.log(f'Success parsed ({row["url"]})')
 
-    async def _task(self, client: ClientSession, row: dict):
-        def row_signs_str(_list):
-            return', '.join([
-                ':'.join([k, v])
-                for k, v in row.items() if k in _list
-            ])
+    async def task(self, client: ClientSession, row: dict):
         res = None
         raw_wp_posts = None
-        exept_str = '{title} ({signs})'
 
         try:
             res = await client.get(row['url'] + WP_JSON)
@@ -62,36 +70,45 @@ class WPParser:
                 await res.text()
             )
         except json.JSONDecodeError:
-            self.log.info(exept_str.format(
+            self.log.info(status_str.format(
                 title="Error parse JSON", 
-                signs=row_signs_str(['id', 'url'])
+                signs=row_signs_str(row, ['id', 'url'])
                 )
             )
         except ClientConnectionError:
-            self.log.info(exept_str.format(
+            self.log.info(status_str.format(
                 title="Connection error", 
-                signs=row_signs_str(['id', 'url'])
+                signs=row_signs_str(row, ['id', 'url'])
                 )
             )
         except UnicodeDecodeError:
-            self.log.info(exept_str.format(
+            self.log.info(status_str.format(
                 title="UnicodeDecodeError", 
-                signs=row_signs_str(['id', 'url'])
+                signs=row_signs_str(row, ['id', 'url'])
                 )
             )
-        except Exception:
-            self.log.info(exept_str.format(
+        except Exception as e:
+            self.log.info(status_str.format(
                 title="Exception", 
-                signs=row_signs_str(['id', 'url'])
-                )
+                signs=row_signs_str(row, ['id', 'url'])
+                ), e
             )
 
         if raw_wp_posts and res.status == 200:
-            await self._add_to_news(row, raw_wp_posts)
+            await self.add_to_news(row, raw_wp_posts)
             
-    async def _sem_task(self, client, row):
+    async def sem_task(self, client, row):
         async with self.sem:  
-            return await self._task(client, row)
+            return await self.task(client, row)
+
+    async def raise_new_client(self, sites):
+        async with ClientSession(raise_for_status=False) as client:
+            await asyncio.gather(
+                *[
+                    asyncio.ensure_future(self.sem_task(client, dict(site)))
+                    for site in sites
+                ],
+            )
 
     async def run(self):
         async with async_session() as s:
@@ -101,13 +118,15 @@ class WPParser:
                 )
             ).mappings().fetchall()
 
-            async with ClientSession() as client:
-                await asyncio.gather(
-                    *[
-                        asyncio.ensure_future(self._sem_task(client, dict(site)))
-                        for site in sites
-                    ],
-                )
+            chunk = []
+            for site in sites:
+                chunk.append(site)
+                if len(chunk) > CHUNK_SIZE:
+                    await self.raise_new_client(chunk)
+                    chunk = []
+            if chunk:
+                await self.raise_new_client(chunk)
+                chunk = []
 
 
 async def main():

@@ -17,17 +17,17 @@ async def hello(request):
         q += 'where title ilike :search or news_content ilike :search\n'
     q += 'limit 10\n'
     async with async_session() as session:
-        row = (
+        rows = (
             await session.execute(q, dict(search=f'%{search}%'))
         ).mappings().fetchall()
         
-    return web.Response(text=str(row))
+    return web.json_response([dict(row) for row in rows])
 
 
 @routes.get('/lp')
 async def launch_parser(request):
     chain(tasks.wp_parser_task.si()).apply_async()
-    return web.Response(text="Started")
+    return web.json_response(text="Started")
 
 
 def main():
