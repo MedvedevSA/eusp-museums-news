@@ -2,7 +2,7 @@ from aiohttp import web
 from celery import chain
 
 import tasks
-from db import init_db, async_session
+from db import async_session
 
 app = web.Application()
 routes = web.RouteTableDef()
@@ -10,9 +10,15 @@ routes = web.RouteTableDef()
 
 @routes.get('/')
 async def hello(request):
+    param = dict(request.rel_url.query)
+
+    q = 'select * from news\n'
+    if search := param.get('search'):
+        q += 'where title ilike :search or news_content ilike :search\n'
+    q += 'limit 10\n'
     async with async_session() as session:
         row = (
-            await session.execute('select * from sites limit 1')
+            await session.execute(q, dict(search=f'%{search}%'))
         ).mappings().fetchall()
         
     return web.Response(text=str(row))
@@ -25,7 +31,6 @@ async def launch_parser(request):
 
 
 def main():
-    init_db()
     app = web.Application()
     app.add_routes(routes)
     web.run_app(app)

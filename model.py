@@ -20,8 +20,9 @@ Index('index_url', Sites.url)
 class News(Base):
     __tablename__ = "news"
     id = Column(Integer(), primary_key=True, comment='Уникальный ID')
+    ext_id = Column(Integer(), comment='id записи на реcурсе')
     site_url = Column(String(), ForeignKey(Sites.url, ondelete='CASCADE'), comment='Реурс')
     title = Column(String(), comment='url ссылка')
-    news_text = Column(JSON(), comment='')
+    news_content = Column(String(), comment='Содержимое новости')
     link = Column(String(), comment='Ссылка на новость')
 
