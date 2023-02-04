@@ -1,5 +1,5 @@
-import pandas as pd 
-from sqlalchemy import select, insert, text
+import pandas as pd
+from sqlalchemy import insert, select, text
 from sqlalchemy.orm import Session
 
 import model

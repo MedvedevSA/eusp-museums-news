@@ -1,14 +1,14 @@
-import logging 
 import asyncio
 import json
-from funcy import get_in
+import logging
 from typing import List
 
-from aiohttp import ClientSession, ClientConnectionError
-from sqlalchemy import select, insert
+from aiohttp import ClientConnectionError, ClientSession
+from funcy import get_in
+from sqlalchemy import insert, select
 
 import model
-from db import async_session, set_context_session, session
+from db import async_session, session, set_context_session
 
 logger = logging.getLogger()
 WP_JSON = '/wp-json/wp/v2/posts'
@@ -89,7 +89,7 @@ class WPParser:
             )
         except Exception as e:
             self.log.info(status_str.format(
-                title="Exception", 
+                title=type(e).__name__, 
                 signs=row_signs_str(row, ['id', 'url'])
                 ), e
             )

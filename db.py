@@ -1,11 +1,10 @@
 from contextvars import ContextVar
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
-from config import SYNC_DB_URL, ASYNC_DB_URL
-
+from config import ASYNC_DB_URL, SYNC_DB_URL
 
 ctx_session = ContextVar('ctx_session', default=None)
 

@@ -1,6 +1,6 @@
+from sqlalchemy import (JSON, Column, ForeignKey, Index, Integer, String,
+                        UniqueConstraint)
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import (Column, Integer, String, Index, JSON, ForeignKey, UniqueConstraint)
-
 
 Base = declarative_base()
 
