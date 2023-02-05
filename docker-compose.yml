@@ -42,14 +42,15 @@ services:
     image: app
     build:
       dockerfile: ./dockerfile
-    # command: python -m aiohttp.web -H localhost -P 8080 app:main 
-    #gunicorn -b 127.0.0.1:8000 GenericRestaurantSystem.wsgi:application
-    # gunicorn app:app -b :8080 --worker-class aiohttp.GunicornWebWorker --reload --access-logfile -
+    command: /bin/sh ./startup_with_init.sh
     ports:
-      - 8080:80
+      - 8080:8080
     environment:
       - DB_HOST=postgres
       - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy

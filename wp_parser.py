@@ -12,7 +12,7 @@ from db import async_session, session, set_context_session
 
 logger = logging.getLogger()
 WP_JSON = '/wp-json/wp/v2/posts'
-CHUNK_SIZE = 200
+CHUNK_SIZE = 500
 
 status_str = '{title} ({signs})'
 

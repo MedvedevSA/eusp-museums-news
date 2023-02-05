@@ -1,9 +1,12 @@
+import logging
+
 from aiohttp import web
 from celery import chain
 
 import tasks
 from db import async_session
 
+logging.basicConfig(level=logging.DEBUG)
 app = web.Application()
 routes = web.RouteTableDef()
 
@@ -27,14 +30,26 @@ async def hello(request):
 @routes.get('/lp')
 async def launch_parser(request):
     chain(tasks.wp_parser_task.si()).apply_async()
-    return web.json_response(text="Started")
+    return web.json_response(data=None, status=200)
+
+@routes.get('/stop_parse')
+async def launch_parser(request):
+    tasks.bin.purge() 
+    # chain(tasks.wp_parser_task.si()).apply_async()
+    return web.json_response(data=None, status=200)
+
+def init_app(app):
+    chain(tasks.wp_parser_task.si()).apply_async()
+    app = web.Application()
+    app.add_routes(routes)
+    return app
 
 
 def main():
-    app = web.Application()
-    app.add_routes(routes)
-    web.run_app(app)
+    web.run_app(init_app(app))
 
+async def serve():
+    return init_app(app)
 
 if __name__ == '__main__':
     main()

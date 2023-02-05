@@ -7,5 +7,5 @@ RUN  python -m pip install -r ./requirements.txt
 WORKDIR /app
 COPY . /app
 
-CMD [ "python", "-m aiohttp.web", "-H localhost", "-P 8080", "app:main"]
-     
+CMD [ "gunicorn", "app:serve", "--bind", "0.0.0.0:8080", "--worker-class", "aiohttp.GunicornWebWorker",]
+      
