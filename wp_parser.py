@@ -71,6 +71,8 @@ class WPParser:
             raw_wp_posts = json.loads(
                 await res.text()
             )
+            if raw_wp_posts and res.status == 200:
+                await self.add_to_news(row, raw_wp_posts)
         except Exception as e:
             self.log.info(status_str.format(
                 title=type(e).__name__, 
@@ -78,9 +80,6 @@ class WPParser:
                 )
             )
 
-        if raw_wp_posts and res.status == 200:
-            await self.add_to_news(row, raw_wp_posts)
-            
     async def sem_task(self, client, row):
         async with self.sem:  
             return await self.task(client, row)
