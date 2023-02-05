@@ -1,0 +1,55 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres
+    container_name: eusp_postgres
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 2s
+      timeout: 2s
+      retries: 5
+    shm_size: 1g
+
+  redis:
+    image: "redis:alpine"
+    ports:
+      - 6379:6379
+    healthcheck:
+      test: ["CMD", "redis-cli","ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 5
+
+  celery:
+    build:
+      dockerfile: ./dockerfile
+    command: celery -A tasks worker -l INFO
+    environment:
+      - DB_HOST=postgres
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  app:
+    image: app
+    build:
+      dockerfile: ./dockerfile
+    # command: python -m aiohttp.web -H localhost -P 8080 app:main 
+    #gunicorn -b 127.0.0.1:8000 GenericRestaurantSystem.wsgi:application
+    # gunicorn app:app -b :8080 --worker-class aiohttp.GunicornWebWorker --reload --access-logfile -
+    ports:
+      - 8080:80
+    environment:
+      - DB_HOST=postgres
+      - DB_PASSWORD=${DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy

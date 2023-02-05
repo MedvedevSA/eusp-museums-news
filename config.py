@@ -7,6 +7,7 @@ class Setting(BaseSettings):
     DB_DATABASE: str = 'postgres'
     DB_USER: str = 'postgres'
     DB_PASSWORD: str = 'qweASDzxc'
+    REDIS_HOST = 'localhost'
 
     class Config:
         env_file = '.env'

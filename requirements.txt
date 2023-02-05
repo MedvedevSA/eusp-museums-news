@@ -1,0 +1,12 @@
+aiohttp==3.8.3
+aiosqlite==0.18.0
+celery==5.2.7
+pydantic==1.10.4
+redis==4.4.2
+SQLAlchemy==1.4.46
+pandas==1.5.3
+funcy
+python-dotenv
+psycopg2-binary
+asyncpg
+gunicorn
