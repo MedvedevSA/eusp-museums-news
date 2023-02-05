@@ -16,7 +16,7 @@ async def hello(request):
     param = dict(request.rel_url.query)
 
     q = 'select * from news\n'
-    if search := param.get('search'):
+    if search := param.get('q'):
         q += 'where title ilike :search or news_content ilike :search\n'
     q += 'limit 10\n'
     async with async_session() as session:
@@ -32,11 +32,6 @@ async def launch_parser(request):
     chain(tasks.wp_parser_task.si()).apply_async()
     return web.json_response(data=None, status=200)
 
-@routes.get('/stop_parse')
-async def launch_parser(request):
-    tasks.bin.purge() 
-    # chain(tasks.wp_parser_task.si()).apply_async()
-    return web.json_response(data=None, status=200)
 
 def init_app(app):
     chain(tasks.wp_parser_task.si()).apply_async()
