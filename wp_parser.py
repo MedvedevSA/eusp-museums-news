@@ -37,29 +37,30 @@ class WPParser:
     async def add_to_news(self, row: dict, wp_resp: List[dict]):
         url = row['url']
         for post in wp_resp:
-            item = dict(
-                site_url=url,
-                ext_id=post.get('id'),
-                title=get_in(post, ['title', 'rendered']),
-                news_content=get_in(post, ['content', 'rendered']),
-                link=post.get('link'),
-            )
-            q = (
-                select(model.News).where(
-                    model.News.ext_id == item['ext_id']).where(
-                        model.News.site_url == item['site_url']
-                    )
-            )
-            async with async_session() as session:
-                if not (await session.execute(q)).scalar_one_or_none():
-                    q = insert(model.News).values(**item)
-                    await session.execute(q)
-                    await session.commit()
-                    self.log.info(status_str.format(
-                        title="Success parsed", 
-                        signs=row_signs_str(row, ['id', 'url'])
+            if isinstance(post, dict):
+                item = dict(
+                    site_url=url,
+                    ext_id=post.get('id'),
+                    title=get_in(post, ['title', 'rendered']),
+                    news_content=get_in(post, ['content', 'rendered']),
+                    link=post.get('link'),
+                )
+                q = (
+                    select(model.News).where(
+                        model.News.ext_id == item['ext_id']).where(
+                            model.News.site_url == item['site_url']
                         )
-                    )
+                )
+                async with async_session() as session:
+                    if not (await session.execute(q)).scalar_one_or_none():
+                        q = insert(model.News).values(**item)
+                        await session.execute(q)
+                        await session.commit()
+                        self.log.info(status_str.format(
+                            title="Success parsed", 
+                            signs=row_signs_str(row, ['id', 'url'])
+                            )
+                        )
 
     async def task(self, client: ClientSession, row: dict):
         res = None
