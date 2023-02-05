@@ -50,15 +50,16 @@ class WPParser:
                         model.News.site_url == item['site_url']
                     )
             )
-            if not (await session().execute(q)).scalar_one_or_none():
-                q = insert(model.News).values(**item)
-                await session().execute(q)
-                await session().commit()
-                self.log.info(status_str.format(
-                    title="Success parsed", 
-                    signs=row_signs_str(row, ['id', 'url'])
+            async with async_session() as session:
+                if not (await session.execute(q)).scalar_one_or_none():
+                    q = insert(model.News).values(**item)
+                    await session.execute(q)
+                    await session.commit()
+                    self.log.info(status_str.format(
+                        title="Success parsed", 
+                        signs=row_signs_str(row, ['id', 'url'])
+                        )
                     )
-                )
 
     async def task(self, client: ClientSession, row: dict):
         res = None
@@ -69,29 +70,11 @@ class WPParser:
             raw_wp_posts = json.loads(
                 await res.text()
             )
-        except json.JSONDecodeError:
-            self.log.info(status_str.format(
-                title="Error parse JSON", 
-                signs=row_signs_str(row, ['id', 'url'])
-                )
-            )
-        except ClientConnectionError:
-            self.log.info(status_str.format(
-                title="Connection error", 
-                signs=row_signs_str(row, ['id', 'url'])
-                )
-            )
-        except UnicodeDecodeError:
-            self.log.info(status_str.format(
-                title="UnicodeDecodeError", 
-                signs=row_signs_str(row, ['id', 'url'])
-                )
-            )
         except Exception as e:
             self.log.info(status_str.format(
                 title=type(e).__name__, 
                 signs=row_signs_str(row, ['id', 'url'])
-                ), e
+                )
             )
 
         if raw_wp_posts and res.status == 200:
@@ -118,15 +101,15 @@ class WPParser:
                 )
             ).mappings().fetchall()
 
-            chunk = []
-            for site in sites:
-                chunk.append(site)
-                if len(chunk) > CHUNK_SIZE:
-                    await self.raise_new_client(chunk)
-                    chunk = []
-            if chunk:
+        chunk = []
+        for site in sites:
+            chunk.append(site)
+            if len(chunk) > CHUNK_SIZE:
                 await self.raise_new_client(chunk)
                 chunk = []
+        if chunk:
+            await self.raise_new_client(chunk)
+            chunk = []
 
 
 async def main():
